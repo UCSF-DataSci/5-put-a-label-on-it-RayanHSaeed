@@ -38,10 +38,7 @@ def load_data(file_path):
     Returns:
         DataFrame containing the data
     """
-    # YOUR CODE HERE
-    # Load the CSV file using pandas
-    
-    return pd.DataFrame()  # Replace with actual implementation
+    return pd.read_csv(file_path)
 ```
 
 ## 3. Categorical Feature Encoding
@@ -66,8 +63,11 @@ def encode_categorical_features(df, column_to_encode='smoker_status'):
     # 3. Create new column names
     # 4. Replace the original categorical column with the encoded columns
     
-    # Placeholder return - replace with your implementation
-    return df.copy()
+     encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+    encoded = encoder.fit_transform(df[[column_to_encode]])
+    encoded_df = pd.DataFrame(encoded, columns=encoder.get_feature_names_out([column_to_encode]))
+    df = df.drop(columns=[column_to_encode]).reset_index(drop=True)
+    return pd.concat([df, encoded_df], axis=1)
 ```
 
 ## 4. Data Preparation
@@ -94,7 +94,18 @@ def prepare_data_part3(df, test_size=0.2, random_state=42):
     # 4. Handle missing values
     
     # Placeholder return - replace with your implementation
-    return None, None, None, None
+    df = encode_categorical_features(df)
+    
+    # Select features (excluding timestamp if present)
+    feature_cols = [col for col in df.columns if col not in ['disease_outcome', 'timestamp']]
+    X = df[feature_cols]
+    y = df['disease_outcome']
+    
+    # Handle missing values
+    imputer = SimpleImputer(strategy='mean')
+    X = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
+    
+    return train_test_split(X, y, test_size=test_size, random_state=random_state, stratify=y)
 ```
 
 ## 5. Handling Imbalanced Data
@@ -114,11 +125,10 @@ def apply_smote(X_train, y_train, random_state=42):
     Returns:
         Resampled X_train and y_train with balanced classes
     """
-    # YOUR CODE HERE
     # Apply SMOTE to balance the classes
     
-    # Placeholder return - replace with your implementation
-    return X_train, y_train
+    smote = SMOTE(random_state=random_state)
+    return smote.fit_resample(X_train, y_train)
 ```
 
 ## 6. Model Training and Evaluation
@@ -137,10 +147,11 @@ def train_logistic_regression(X_train, y_train):
     Returns:
         Trained logistic regression model
     """
-    # YOUR CODE HERE
     # Initialize and train a LogisticRegression model
     
-    return None  # Replace with actual implementation
+    model = LogisticRegression(max_iter=1000)
+    model.fit(X_train, y_train)
+    return model
 
 def calculate_evaluation_metrics(model, X_test, y_test):
     """
@@ -154,14 +165,22 @@ def calculate_evaluation_metrics(model, X_test, y_test):
     Returns:
         Dictionary containing accuracy, precision, recall, f1, auc, and confusion_matrix
     """
-    # YOUR CODE HERE
     # 1. Generate predictions
     # 2. Calculate metrics: accuracy, precision, recall, f1, auc
     # 3. Create confusion matrix
     # 4. Return metrics in a dictionary
     
-    # Placeholder return - replace with your implementation
-    return {}
+preds = model.predict(X_test)
+    probs = model.predict_proba(X_test)[:, 1]
+
+    return {
+        'accuracy': accuracy_score(y_test, preds),
+        'precision': precision_score(y_test, preds),
+        'recall': recall_score(y_test, preds),
+        'f1': f1_score(y_test, preds),
+        'auc': roc_auc_score(y_test, probs),
+        'confusion_matrix': confusion_matrix(y_test, preds).tolist()
+    }
 ```
 
 ## 7. Save Results
@@ -169,10 +188,16 @@ def calculate_evaluation_metrics(model, X_test, y_test):
 Save the evaluation metrics to a text file.
 
 ```python
-# YOUR CODE HERE
 # 1. Create 'results' directory if it doesn't exist
 # 2. Format metrics as strings
 # 3. Write metrics to 'results/results_part3.txt'
+
+import json
+
+def save_results(metrics, path='results/results_part3.txt'):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        json.dump(metrics, f, indent=2)
 ```
 
 ## 8. Main Execution
@@ -204,7 +229,7 @@ if __name__ == "__main__":
             print(f"{metric}: {value:.4f}")
     
     # 7. Save results
-    # (Your code for saving results)
+    save_results(metrics)
     
     # 8. Load Part 1 results for comparison
     import json
@@ -237,16 +262,17 @@ def compare_models(part1_metrics, part3_metrics):
     Returns:
         Dictionary with metric names as keys and improvement percentages as values
     """
-    # YOUR CODE HERE
     # 1. Calculate percentage improvement for each metric
     # 2. Handle metrics where higher is better (most metrics) and where lower is better
     # 3. Return a dictionary with metric names and improvement percentages
     
     # Placeholder return - replace with your implementation
-    return {
-        'accuracy': 0.0,
-        'precision': 0.0,
-        'recall': 0.0,
-        'f1': 0.0,
-        'auc': 0.0
-    }
+    improvements = {}
+    for key in ['accuracy', 'precision', 'recall', 'f1', 'auc']:
+        base = part1_metrics.get(key, 0)
+        new = part3_metrics.get(key, 0)
+        if base > 0:
+            improvements[key] = ((new - base) / base) * 100
+        else:
+            improvements[key] = float('inf') if new > 0 else 0.0
+    return improvements
